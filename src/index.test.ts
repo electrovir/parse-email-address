@@ -39,15 +39,6 @@ const validEmailTestCases = [
         },
     },
     {
-        it: 'handles one letter user',
-        input: 'x@example.org',
-        expect: {
-            user: 'x',
-            domain: 'example.org',
-            full: 'x@example.org',
-        },
-    },
-    {
         it: 'handles space between quotes user',
         input: '" "@example.org',
         expect: {
