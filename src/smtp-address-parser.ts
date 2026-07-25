@@ -79,8 +79,7 @@ export function parse(address: string): ParseOutput {
         const labels = domain.split('.');
         if (labels.length < 2) {
             throw new Error('domain not fully qualified');
-        }
-        if (labels[labels.length - 1]!.length < 2) {
+        } else if (labels[labels.length - 1]!.length < 2) {
             throw new Error('top level domain label too short');
         }
 

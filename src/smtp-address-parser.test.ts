@@ -418,8 +418,11 @@ describe('test canonicalize', () => {
     it(`"foo${bs}.bar"`, () => {
         assert.strictEquals(canonicalize_quoted_string(`"foo${bs}.bar"`), '"foo.bar"');
     });
-    it(`"foo${bs}\\bar"`, () => {
-        assert.strictEquals(canonicalize_quoted_string(`"foo${bs}\\bar"`), String.raw`"foo\\bar"`);
+    it(String.raw`"foo${bs}\bar"`, () => {
+        assert.strictEquals(
+            canonicalize_quoted_string(String.raw`"foo${bs}\bar"`),
+            String.raw`"foo\\bar"`,
+        );
     });
     it(`"foo${bs}"bar"`, () => {
         assert.strictEquals(canonicalize_quoted_string(`"foo${bs}"bar"`), String.raw`"foo\"bar"`);

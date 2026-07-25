@@ -281,12 +281,12 @@ const invalidEmailTestCases = [
     },
     {
         it: 'rejects empty domain',
-        input: `local-part@`,
+        input: 'local-part@',
         expect: undefined,
     },
     {
         it: 'rejects empty local part',
-        input: `@example.org`,
+        input: '@example.org',
         expect: undefined,
     },
     {

@@ -16,6 +16,7 @@
         "./prettier.config.mjs",
         "./scripts/",
         "./test-files/",
+        "eslint.config.ts",
         "src/all-files-for-code-coverage.test.ts"
     ],
     "extends": "@virmator/compile/configs/tsconfig.base.json"
