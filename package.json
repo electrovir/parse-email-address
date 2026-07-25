@@ -1,20 +1,25 @@
 {
     "name": "parse-email-address",
-    "version": "0.0.2",
-    "description": "Parse/validate email address with RFC-5321 and sane size limits.",
+    "version": "0.0.3",
+    "description": "Parse/validate email addresses with RFC-5321, and message header address lists with RFC-5322.",
     "keywords": [
         "smtp-address-parser",
         "smtp",
         "email",
         "address",
+        "address-list",
+        "header",
+        "mailbox",
         "parser",
         "validator",
         "validate",
         "normalize",
-        "RFC-5321",
+        "rfc821",
         "rfc2821",
+        "rfc2822",
         "rfc5321",
-        "rfc821"
+        "rfc5322",
+        "rfc6531"
     ],
     "homepage": "https://github.com/electrovir/parse-email-address",
     "bugs": {

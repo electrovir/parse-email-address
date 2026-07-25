@@ -1,8 +1,13 @@
 # parse-email-address
 
-Parse, validate, and normalize email addresses, primarily using RFC-5321.
+Parse, validate, and normalize email addresses.
 
 Full docs: https://electrovir.github.io/parse-email-address
+
+Pick the function that matches what you have:
+
+-   One address, like something typed into a form: `parseEmailAddress`, `isValidEmailAddress`, `normalizeEmailAddress`. These accept only `user@domain`, so `Jane Doe <jane@example.org>` is not valid.
+-   A `To`, `Cc`, or `From` header from an email: `parseEmailAddressList` (any number of addresses) or `parseHeaderEmailAddress` (exactly one). These accept names, comments, and everything else a header can hold.
 
 This uses and is based on [`smtp-address-parser` v1.1.0](https://www.npmjs.com/package/smtp-address-parser/v/1.1.0), so it has the following features (from `smtp-address-parser`):
 
@@ -21,6 +26,11 @@ This package adds the following features:
 -   More explicit types.
 -   Simplified API.
 -   No dependencies.
+-   Email header parsing ([RFC-5322](https://datatracker.ietf.org/doc/html/rfc5322#section-3.4)), including names, comments, groups, line folding, and non-ASCII addresses.
+    -   A name is never mistaken for an address. `billing@example.com <attacker@example.org>` has one recipient: `attacker@example.org`.
+    -   Unclear addresses are skipped instead of guessed at.
+    -   A bad address never breaks the rest of the header.
+    -   Never throws, and safe to run on untrusted email.
 
 ## install
 
@@ -33,7 +43,13 @@ npm i parse-email-address
 <!-- example-link: src/examples.example.ts -->
 
 ```TypeScript
-import {isValidEmailAddress, normalizeEmailAddress, parseEmailAddress} from 'parse-email-address';
+import {
+    isValidEmailAddress,
+    normalizeEmailAddress,
+    parseEmailAddress,
+    parseEmailAddressList,
+    parseHeaderEmailAddress,
+} from 'parse-email-address';
 
 /**
  * Parse email addresses into parts with `parseEmailAddress`. Returns `undefined` if the input is an
@@ -56,4 +72,29 @@ normalizeEmailAddress('tld-too-short@foo.x'); // returns `undefined`
 isValidEmailAddress('simple@example.org'); // returns `true`
 isValidEmailAddress('SIMPLE@EXAMPLE.ORG'); // returns `true`
 isValidEmailAddress('tld-too-short@foo.x'); // returns `false`
+
+/**
+ * All three of those implement RFC 5321, the strict envelope grammar, so they accept nothing but a
+ * bare `user@domain`. To read a message header, use `parseEmailAddressList`, which implements RFC
+ * 5322 and returns every mailbox in the header.
+ */
+
+parseEmailAddressList('Jane Doe <jane@example.org>, john@example.org');
+// returns two mailboxes, the first with `displayName: 'Jane Doe'`
+parseEmailAddressList('Intake: jane@example.org;');
+// returns one mailbox with `groupName: 'Intake'`
+parseEmailAddressList('undisclosed-recipients:;'); // returns `[]`
+
+/**
+ * A display name is never reported as an address, so a display name that looks like an address
+ * cannot pass itself off as a recipient.
+ */
+
+parseEmailAddressList('billing@example.com <attacker@example.org>');
+// returns only `attacker@example.org`
+
+/** Use `parseHeaderEmailAddress` for a header that should hold exactly one address. */
+
+parseHeaderEmailAddress('Jane Doe <jane@example.org>'); // returns one mailbox
+parseHeaderEmailAddress('jane@example.org, john@example.org'); // returns `undefined`
 ```

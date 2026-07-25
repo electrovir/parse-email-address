@@ -1,5 +1,16 @@
 import {describe, itCases} from '@augment-vir/test';
-import {isValidEmailAddress, normalizeEmailAddress, parseEmailAddress} from './index.js';
+import {
+    isValidEmailAddress,
+    normalizeEmailAddress,
+    parseEmailAddress,
+} from './parse-email-address.js';
+
+const grinningFace = String.fromCodePoint(0x1_f6_00);
+const deleteCharacter = String.fromCodePoint(0x7f);
+
+/** The longest address the RFC 5321 parser accepts, based on the 1,000 octet SMTP line length. */
+const longestValidAddress = `${'a'.repeat(974)}@example.org`;
+const longestValidDomainLabel = `${'a'.repeat(63)}.test`;
 
 const validEmailTestCases = [
     {
@@ -201,6 +212,51 @@ const validEmailTestCases = [
             full: 'simple@[tag:Can-Be-Anything]',
         },
     },
+    {
+        it: 'handles a two letter top level domain',
+        input: 'simple@example.co',
+        expect: {
+            user: 'simple',
+            domain: 'example.co',
+            full: 'simple@example.co',
+        },
+    },
+    {
+        it: 'handles a surrogate pair in the user',
+        input: `simple${grinningFace}@example.org`,
+        expect: {
+            user: `simple${grinningFace}`,
+            domain: 'example.org',
+            full: `simple${grinningFace}@example.org`,
+        },
+    },
+    {
+        it: 'handles an undecoded encoded word as a user',
+        input: '=?utf-8?B?SmFuZQ==?=@example.org',
+        expect: {
+            user: '=?utf-8?B?SmFuZQ==?=',
+            domain: 'example.org',
+            full: '=?utf-8?B?SmFuZQ==?=@example.org',
+        },
+    },
+    {
+        it: 'handles the longest allowed address',
+        input: longestValidAddress,
+        expect: {
+            user: 'a'.repeat(974),
+            domain: 'example.org',
+            full: longestValidAddress,
+        },
+    },
+    {
+        it: 'handles the longest allowed domain label',
+        input: `simple@${longestValidDomainLabel}`,
+        expect: {
+            user: 'simple',
+            domain: longestValidDomainLabel,
+            full: `simple@${longestValidDomainLabel}`,
+        },
+    },
 ];
 
 const invalidEmailTestCases = [
@@ -333,6 +389,61 @@ const invalidEmailTestCases = [
     {
         it: 'rejects underscore in domain',
         input: 'i_like_underscore@but_its_not_allowed_in_this_part.example.org',
+        expect: undefined,
+    },
+    {
+        it: 'rejects undefined',
+        input: undefined,
+        expect: undefined,
+    },
+    {
+        it: 'rejects surrounding whitespace',
+        input: ' simple@example.org ',
+        expect: undefined,
+    },
+    {
+        it: 'rejects a trailing line break',
+        input: 'simple@example.org\r\n',
+        expect: undefined,
+    },
+    {
+        it: 'rejects a header display name address',
+        input: 'Simple Person <simple@example.org>',
+        expect: undefined,
+    },
+    {
+        it: 'rejects a list of two addresses',
+        input: 'simple@example.org, other@example.org',
+        expect: undefined,
+    },
+    {
+        it: 'rejects a group of addresses',
+        input: 'Group: simple@example.org;',
+        expect: undefined,
+    },
+    {
+        it: 'rejects a trailing comment',
+        input: 'simple@example.org (Simple Person)',
+        expect: undefined,
+    },
+    {
+        it: 'rejects an unqualified host name',
+        input: 'simple@localhost',
+        expect: undefined,
+    },
+    {
+        it: 'rejects a delete character in the user',
+        input: `simple${deleteCharacter}@example.org`,
+        expect: undefined,
+    },
+    {
+        it: 'rejects an address one character over the length limit',
+        input: `a${longestValidAddress}`,
+        expect: undefined,
+    },
+    {
+        it: 'rejects a domain label one character over the length limit',
+        input: `simple@a${longestValidDomainLabel}`,
         expect: undefined,
     },
 ];
@@ -472,6 +583,41 @@ describe(normalizeEmailAddress.name, () => {
             it: 'handles general address literal',
             input: 'simple@[tag:Can-Be-Anything]',
             expect: 'simple@[tag:can-be-anything]',
+        },
+        {
+            it: 'lowercases only the domain of an uppercase address',
+            input: 'Simple.Person@Example.ORG',
+            expect: 'simple.person@example.org',
+        },
+        {
+            it: 'keeps the dots and plus tag that make an address distinct',
+            input: 'simple.person+referrals@example.org',
+            expect: 'simple.person+referrals@example.org',
+        },
+        {
+            it: 'lowercases a quoted user, which its own host may consider distinct',
+            input: '"Simple.Person"@Example.ORG',
+            expect: '"simple.person"@example.org',
+        },
+        {
+            it: 'lowercases an IPv6 tag',
+            input: 'simple@[IPv6:::1]',
+            expect: 'simple@[ipv6:::1]',
+        },
+        {
+            it: 'keeps a two letter top level domain',
+            input: 'simple@example.co',
+            expect: 'simple@example.co',
+        },
+        {
+            it: 'keeps a surrogate pair in the user',
+            input: `simple${grinningFace}@example.org`,
+            expect: `simple${grinningFace}@example.org`,
+        },
+        {
+            it: 'handles the longest allowed address',
+            input: longestValidAddress,
+            expect: longestValidAddress,
         },
 
         ...invalidEmailTestCases,
