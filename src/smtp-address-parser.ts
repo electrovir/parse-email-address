@@ -32,12 +32,39 @@
 import * as rawNearley from './nearley.js';
 
 import {type RequireExactlyOne} from 'type-fest';
+import {asciiSafeLowerCase} from './ascii-safe-lower-case.js';
 import myGrammar from './grammar.js';
 
 const {Grammar, Parser} = rawNearley;
 
+/**
+ * `Grammar.fromCompiled` reads `ParserStart` off the compiled grammar as it builds, so each start
+ * rule needs its own build.
+ */
+myGrammar.ParserStart = 'IPv6_addr';
+const ipv6Grammar = Grammar.fromCompiled(myGrammar);
+
 myGrammar.ParserStart = 'Mailbox';
 const grammar = Grammar.fromCompiled(myGrammar);
+
+const reservedIpv6Tag = '[IPv6:';
+
+/**
+ * An `IPv6:` literal also matches the grammar's `General_address_literal` rule, which accepts any
+ * tag followed by printable ASCII, so the grammar alone would accept `[IPv6:not-hex-at-all]`. The
+ * tag is reserved, so its content has to satisfy `IPv6_addr` itself.
+ */
+function isValidIpv6Address(ipv6Address: string): boolean {
+    const parser = new Parser(ipv6Grammar);
+
+    try {
+        parser.feed(ipv6Address);
+    } catch {
+        return false;
+    }
+
+    return !!parser.results?.length;
+}
 
 export type ParseOutput = {
     domainPart: RequireExactlyOne<{
@@ -63,7 +90,13 @@ export function parse(address: string): ParseOutput {
     const parser = new Parser(grammar);
     parser.feed(address);
 
-    if (parser.results!.length !== 1) {
+    /**
+     * The RFC grammar reaches some addresses by more than one path (a well formed IPv6 literal
+     * matches both `IPv6_address_literal` and `General_address_literal`). Those paths all produce
+     * the same output, so only differing output means the address is genuinely ambiguous.
+     */
+    const distinctResults = new Set(parser.results!.map((result) => JSON.stringify(result)));
+    if (distinctResults.size !== 1) {
         throw new Error('address parsing failed: ambiguous grammar');
     }
 
@@ -71,7 +104,11 @@ export function parse(address: string): ParseOutput {
 
     const at_idx = address.lastIndexOf('@'); // must be found, since parse was successful
     const domain = address.slice(Math.max(0, at_idx + 1));
-    if (domain[0] !== '[') {
+    if (asciiSafeLowerCase(domain).startsWith(asciiSafeLowerCase(reservedIpv6Tag))) {
+        if (!isValidIpv6Address(domain.slice(reservedIpv6Tag.length, -1))) {
+            throw new Error('invalid IPv6 address literal');
+        }
+    } else if (domain[0] !== '[') {
         // Not an address literal
         if (domain.length > 253) {
             throw new Error('domain too long');
@@ -103,13 +140,13 @@ export function normalize_dot_string(dot_string: string) {
         return dot_string.slice(0, Math.max(0, plus_loc));
     })();
     const noDot = noTag.replace(/\./g, '');
-    return noDot.toLowerCase();
+    return asciiSafeLowerCase(noDot);
 }
 
 /** The G style address normalization. */
 export function normalize(address: string) {
     const a = parse(address);
-    const domain = a.domainPart.AddressLiteral ?? a.domainPart.DomainName.toLowerCase();
+    const domain = a.domainPart.AddressLiteral ?? asciiSafeLowerCase(a.domainPart.DomainName);
     const local = a.localPart.QuotedString ?? normalize_dot_string(a.localPart.DotString);
     return `${local}@${domain}`;
 }
@@ -124,7 +161,7 @@ export function canonicalize_quoted_string(quoted_string: string) {
 /** Apply a canonicalization consistent with standards to support comparison as a string. */
 export function canonicalize(address: string) {
     const a = parse(address);
-    const domain = a.domainPart.AddressLiteral ?? a.domainPart.DomainName.toLowerCase();
+    const domain = a.domainPart.AddressLiteral ?? asciiSafeLowerCase(a.domainPart.DomainName);
     const local = a.localPart.QuotedString
         ? canonicalize_quoted_string(a.localPart.QuotedString)
         : a.localPart.DotString;

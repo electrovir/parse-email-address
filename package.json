@@ -1,6 +1,6 @@
 {
     "name": "parse-email-address",
-    "version": "0.0.3",
+    "version": "0.0.4",
     "description": "Parse/validate email addresses with RFC-5321, and message header address lists with RFC-5322.",
     "keywords": [
         "smtp-address-parser",

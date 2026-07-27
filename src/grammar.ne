@@ -41,6 +41,10 @@ times_3[X]     -> $X $X $X
 times_5[X]     -> $X $X $X $X $X
 times_7[X]     -> $X $X $X $X $X $X $X
 
+# RFC 5321 writes the IPv6 compressed forms with *3 and *5, meaning "up to", not "exactly".
+upTo_3[X]      -> null | $X | $X $X | $X $X $X
+upTo_5[X]      -> null | $X | $X $X | $X $X $X | $X $X $X $X | $X $X $X $X $X
+
 ## <https://tools.ietf.org/html/rfc5321#section-4.1.2>
 
 Reverse_path   -> Path | "<>"
@@ -160,16 +164,16 @@ IPv6_hex       -> HEXDIG |
 
 IPv6_full      -> IPv6_hex times_7[":" IPv6_hex]
 
-IPv6_comp      -> (IPv6_hex times_5[":" IPv6_hex]):? "::"
-                  (IPv6_hex times_5[":" IPv6_hex]):?
+IPv6_comp      -> (IPv6_hex upTo_5[":" IPv6_hex]):? "::"
+                  (IPv6_hex upTo_5[":" IPv6_hex]):?
                 # The "::" represents at least 2 16_bit groups of
                 # zeros.  No more than 6 groups in addition to the
                 # "::" may be present.
 
 IPv6v4_full    -> IPv6_hex times_5[":" IPv6_hex] ":" IPv4_address_literal
 
-IPv6v4_comp    -> (IPv6_hex times_3[":" IPv6_hex]):? "::"
-                  (IPv6_hex times_3[":" IPv6_hex] ":"):?
+IPv6v4_comp    -> (IPv6_hex upTo_3[":" IPv6_hex]):? "::"
+                  (IPv6_hex upTo_3[":" IPv6_hex] ":"):?
                   IPv4_address_literal
                 # The "::" represents at least 2 16_bit groups of
                 # zeros.  No more than 4 groups in addition to the

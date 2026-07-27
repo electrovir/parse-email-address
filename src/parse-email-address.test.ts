@@ -1,3 +1,5 @@
+// cspell:words JOSÉ josé ÉXAMPLE éxample
+
 import {describe, itCases} from '@augment-vir/test';
 import {
     isValidEmailAddress,
@@ -6,6 +8,7 @@ import {
 } from './parse-email-address.js';
 
 const grinningFace = String.fromCodePoint(0x1_f6_00);
+const kelvinSign = String.fromCodePoint(0x21_2a);
 const deleteCharacter = String.fromCodePoint(0x7f);
 
 /** The longest address the RFC 5321 parser accepts, based on the 1,000 octet SMTP line length. */
@@ -177,12 +180,30 @@ const validEmailTestCases = [
         },
     },
     {
-        it: 'handles another IPv6 domain',
-        input: 'simple@[IPv6:68:1c:a2:12:4a:e5]',
+        it: 'handles a fully expanded IPv6 domain',
+        input: 'simple@[IPv6:2001:db8:0:0:0:0:0:1]',
         expect: {
             user: 'simple',
-            domain: '[IPv6:68:1c:a2:12:4a:e5]',
-            full: 'simple@[IPv6:68:1c:a2:12:4a:e5]',
+            domain: '[IPv6:2001:db8:0:0:0:0:0:1]',
+            full: 'simple@[IPv6:2001:db8:0:0:0:0:0:1]',
+        },
+    },
+    {
+        it: 'handles a partially compressed IPv6 domain',
+        input: 'simple@[IPv6:2001:db8::1]',
+        expect: {
+            user: 'simple',
+            domain: '[IPv6:2001:db8::1]',
+            full: 'simple@[IPv6:2001:db8::1]',
+        },
+    },
+    {
+        it: 'handles an IPv6 domain ending in an embedded IPv4 address',
+        input: 'simple@[IPv6:2001:db8::192.0.2.1]',
+        expect: {
+            user: 'simple',
+            domain: '[IPv6:2001:db8::192.0.2.1]',
+            full: 'simple@[IPv6:2001:db8::192.0.2.1]',
         },
     },
     {
@@ -298,6 +319,31 @@ const invalidEmailTestCases = [
     {
         it: 'rejects bad ip address [127.0.1]',
         input: 'user@[127.0.1]',
+        expect: undefined,
+    },
+    {
+        it: 'rejects an IPv6 domain with too few groups',
+        input: 'user@[IPv6:68:1c:a2:12:4a:e5]',
+        expect: undefined,
+    },
+    {
+        it: 'rejects an IPv6 domain with too many groups',
+        input: 'user@[IPv6:1:2:3:4:5:6:7:8:9]',
+        expect: undefined,
+    },
+    {
+        it: 'rejects an IPv6 domain whose content is not an address at all',
+        input: 'user@[IPv6:not-hex-at-all]',
+        expect: undefined,
+    },
+    {
+        it: 'rejects an IPv6 domain with no content',
+        input: 'user@[IPv6:]',
+        expect: undefined,
+    },
+    {
+        it: 'rejects an IPv6 domain with a zone index',
+        input: 'user@[IPv6:fe80::1%25eth0]',
         expect: undefined,
     },
     {
@@ -565,9 +611,9 @@ describe(normalizeEmailAddress.name, () => {
             expect: 'simple@[ipv6:::1]',
         },
         {
-            it: 'handles another IPv6 domain',
-            input: 'simple@[IPv6:68:1c:a2:12:4a:e5]',
-            expect: 'simple@[ipv6:68:1c:a2:12:4a:e5]',
+            it: 'handles a fully expanded IPv6 domain',
+            input: 'simple@[IPv6:2001:DB8:0:0:0:0:0:1]',
+            expect: 'simple@[ipv6:2001:db8:0:0:0:0:0:1]',
         },
         {
             it: 'handles unicode UTF-8',
@@ -608,6 +654,21 @@ describe(normalizeEmailAddress.name, () => {
             it: 'keeps a two letter top level domain',
             input: 'simple@example.co',
             expect: 'simple@example.co',
+        },
+        {
+            it: 'leaves a Kelvin sign in a domain alone rather than folding it to an ASCII k',
+            input: `simple@ban${kelvinSign}.example.com`,
+            expect: `simple@ban${kelvinSign}.example.com`,
+        },
+        {
+            it: 'leaves a Kelvin sign in a user alone rather than folding it to an ASCII k',
+            input: `wells${kelvinSign}y@example.org`,
+            expect: `wells${kelvinSign}y@example.org`,
+        },
+        {
+            it: 'still lowercases a non-ASCII character within its own script',
+            input: 'JOSÉ@ÉXAMPLE.ORG',
+            expect: 'josé@éxample.org',
         },
         {
             it: 'keeps a surrogate pair in the user',

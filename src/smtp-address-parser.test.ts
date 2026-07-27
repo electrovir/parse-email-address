@@ -219,11 +219,11 @@ describe('good addresses pass', () => {
     });
     it('Another IPv6 address literal', () => {
         check({
-            address: 'simple@[IPv6:68:1c:a2:12:4a:e5]',
+            address: 'simple@[IPv6:2001:db8:0:0:0:0:0:1]',
             dot: 'simple',
             quote: undefined,
             name: undefined,
-            addr: '[IPv6:68:1c:a2:12:4a:e5]',
+            addr: '[IPv6:2001:db8:0:0:0:0:0:1]',
         });
     });
     it('Unicode UTF-8', () => {

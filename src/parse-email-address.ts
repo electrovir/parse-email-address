@@ -1,3 +1,4 @@
+import {asciiSafeLowerCase} from './ascii-safe-lower-case.js';
 import {canonicalize, parse} from './smtp-address-parser.js';
 
 /**
@@ -87,8 +88,12 @@ export function parseEmailAddress(
  * specific email server to properly handle emails.
  *
  * This uses `canonicalize` from [`smtp-address-parser`
- * v1.1.0](https://www.npmjs.com/package/smtp-address-parser/v/1.1.0) and converts the entire string
- * to lowercase.
+ * v1.1.0](https://www.npmjs.com/package/smtp-address-parser/v/1.1.0) and lowercases the entire
+ * string. A character is never lowercased across scripts into ASCII, so an address containing
+ * U+212A KELVIN SIGN does not normalize to the same string as one containing an ASCII `k`.
+ *
+ * A quoted local part may itself contain an `@`, so the output is not safe to split on `@`. Use
+ * {@link parseEmailAddress} when you need the domain.
  *
  * @example
  *
@@ -100,6 +105,9 @@ export function parseEmailAddress(
  *
  * const result2 = normalizeEmailAddress('tld-too-short@foo.x');
  * // result2 is `undefined`
+ *
+ * const result3 = normalizeEmailAddress('"a@b"@example.org');
+ * // result3 is `'"a@b"@example.org'`, which contains two `@`
  * ```
  *
  * @returns `undefined` if the given email address is invalid.
@@ -111,7 +119,7 @@ export function normalizeEmailAddress(emailAddress: string | undefined): string 
             return undefined;
         }
 
-        return canonicalize(emailAddress).toLowerCase();
+        return asciiSafeLowerCase(canonicalize(emailAddress));
     } catch {
         return undefined;
     }

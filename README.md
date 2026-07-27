@@ -26,6 +26,8 @@ This package adds the following features:
 -   More explicit types.
 -   Simplified API.
 -   No dependencies.
+-   Two different addresses never normalize to the same string. `K` (U+212A KELVIN SIGN) stays as it is instead of becoming a plain `k`.
+-   IP address domains are checked. `name@[IPv6:2001:db8::1]` is valid, `name@[IPv6:not-an-address]` is not.
 -   Email header parsing ([RFC-5322](https://datatracker.ietf.org/doc/html/rfc5322#section-3.4)), including names, comments, groups, line folding, and non-ASCII addresses.
     -   A name is never mistaken for an address. `billing@example.com <attacker@example.org>` has one recipient: `attacker@example.org`.
     -   Unclear addresses are skipped instead of guessed at.
