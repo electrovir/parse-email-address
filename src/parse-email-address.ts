@@ -6,6 +6,8 @@ import {canonicalize, parse} from './smtp-address-parser.js';
  *
  * Note that {@link parseEmailAddress} will return `undefined` instead of this if its input is not a
  * valid email address.
+ *
+ * @category Internal
  */
 export type ParsedEmailAddress = {
     /**
@@ -44,6 +46,7 @@ export type ParsedEmailAddress = {
  * This uses `parse` from [`smtp-address-parser`
  * v1.1.0](https://www.npmjs.com/package/smtp-address-parser/v/1.1.0).
  *
+ * @category Main
  * @example
  *
  * ```ts
@@ -95,6 +98,7 @@ export function parseEmailAddress(
  * A quoted local part may itself contain an `@`, so the output is not safe to split on `@`. Use
  * {@link parseEmailAddress} when you need the domain.
  *
+ * @category Main
  * @example
  *
  * ```ts
@@ -133,6 +137,7 @@ export function normalizeEmailAddress(emailAddress: string | undefined): string 
  * This uses `parse` from [`smtp-address-parser`
  * v1.1.0](https://www.npmjs.com/package/smtp-address-parser/v/1.1.0).
  *
+ * @category Main
  * @example
  *
  * ```ts

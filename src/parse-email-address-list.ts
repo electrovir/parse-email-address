@@ -5,7 +5,11 @@ import {
 } from './address-list-tokens.js';
 import {normalizeEmailAddress, type ParsedEmailAddress} from './parse-email-address.js';
 
-/** A single mailbox read out of an RFC 5322 address list header. */
+/**
+ * A single mailbox read out of an RFC 5322 address list header.
+ *
+ * @category Internal
+ */
 export type ParsedHeaderEmailAddress = ParsedEmailAddress & {
     /**
      * The display name that preceded the address, with quoting and comments removed, or `undefined`
@@ -31,6 +35,8 @@ export type ParsedHeaderEmailAddress = ParsedEmailAddress & {
  * The longest header value that {@link parseEmailAddressList} will read. RFC 5322 sets no limit on
  * the length of a folded address list header, so this exists only to bound the work done on hostile
  * input; it is far above any legitimate header.
+ *
+ * @category Internal
  */
 export const maxAddressListLength = 65_536;
 
@@ -56,6 +62,7 @@ const maxAddressLength = 254;
  * group. Code that decides where mail goes must rely on this rather than on searching the header
  * for text that looks like an address.
  *
+ * @category Main
  * @example
  *
  * ```ts
@@ -82,6 +89,7 @@ export function parseEmailAddressList(headerValue: string | undefined): ParsedHe
  * `parseEmailAddress` this accepts a display name, and unlike {@link parseEmailAddressList} it
  * refuses to guess when the value holds more than one address.
  *
+ * @category Main
  * @example
  *
  * ```ts
@@ -110,7 +118,7 @@ function parseAddressListTokens(
     let groupName: string | undefined = undefined;
     /**
      * The last terminator {@link findEntryTerminator} found. Parsing only ever moves forward, so
-     * while it has not yet passed this token the next terminator is still this one, and rescanning
+     * while it has not yet passed this token the next terminator is still this one, and scanning
      * for it would make a header full of addr-specs with no terminators cost quadratic time.
      */
     let knownTerminatorIndex = -1;

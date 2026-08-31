@@ -1,5 +1,7 @@
 // cspell:word atext
 
+import {assertWrap} from '@augment-vir/assert';
+
 /**
  * The kinds of tokens that an [RFC 5322](https://datatracker.ietf.org/doc/html/rfc5322#section-3.4)
  * address list is built from. Whitespace and comments are not tokens: the tokenizer drops them and
@@ -70,9 +72,9 @@ function isAtomCharacter(character: string): boolean {
         return true;
     } else if (character < firstNonAsciiCharacter) {
         return false;
+    } else {
+        return !nonAtomCharacterRegExp.test(character);
     }
-
-    return !nonAtomCharacterRegExp.test(character);
 }
 
 const doubleQuote = '"';
@@ -210,9 +212,9 @@ function buildDelimiterScanTables(headerValue: string): DelimiterScanTables {
             (character) => character === doubleQuote,
         ),
         domainLiteralEnd: buildFirstMatchTable(headerValue, (character) => character === ']'),
-        recovery: buildFirstMatchTable(headerValue, (character) =>
-            recoveryCharacters.includes(character),
-        ),
+        recovery: buildFirstMatchTable(headerValue, (character) => {
+            return recoveryCharacters.includes(character);
+        }),
     };
 }
 
@@ -231,10 +233,10 @@ function buildFirstMatchTable(
         const character = headerValue.charAt(index);
         table[index] =
             character === backslash
-                ? (table[index + 2] ?? -1)
+                ? assertWrap.isDefined(table[index + 2])
                 : isMatch(character)
                   ? index
-                  : (table[index + 1] ?? -1);
+                  : assertWrap.isDefined(table[index + 1]);
     }
 
     return table;
@@ -252,14 +254,14 @@ function buildCommentEndTable(headerValue: string): Int32Array {
         const character = headerValue.charAt(index);
 
         if (character === backslash) {
-            table[index] = table[index + 2] ?? -1;
+            table[index] = assertWrap.isDefined(table[index + 2]);
         } else if (character === ')') {
             table[index] = index;
         } else if (character === '(') {
-            const nestedEnd = table[index + 1] ?? -1;
-            table[index] = nestedEnd < 0 ? -1 : (table[nestedEnd + 1] ?? -1);
+            const nestedEnd = assertWrap.isDefined(table[index + 1]);
+            table[index] = nestedEnd < 0 ? -1 : assertWrap.isDefined(table[nestedEnd + 1]);
         } else {
-            table[index] = table[index + 1] ?? -1;
+            table[index] = assertWrap.isDefined(table[index + 1]);
         }
     }
 
@@ -282,7 +284,7 @@ function scanDelimitedRun({
     endTable: Int32Array;
     recoveryTable: Int32Array;
 }>): DelimitedScan {
-    const closingIndex = endTable[startIndex + 1] ?? -1;
+    const closingIndex = assertWrap.isDefined(endTable[startIndex + 1]);
 
     if (closingIndex >= 0) {
         return {
@@ -291,7 +293,7 @@ function scanDelimitedRun({
         };
     }
 
-    const recoveryIndex = recoveryTable[startIndex + 1] ?? -1;
+    const recoveryIndex = assertWrap.isDefined(recoveryTable[startIndex + 1]);
 
     return {
         end: recoveryIndex < 0 ? headerValue.length : recoveryIndex,
