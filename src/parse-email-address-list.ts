@@ -108,6 +108,12 @@ function parseAddressListTokens(
     const addresses: ParsedHeaderEmailAddress[] = [];
     let index = 0;
     let groupName: string | undefined = undefined;
+    /**
+     * The last terminator {@link findEntryTerminator} found. Parsing only ever moves forward, so
+     * while it has not yet passed this token the next terminator is still this one, and rescanning
+     * for it would make a header full of addr-specs with no terminators cost quadratic time.
+     */
+    let knownTerminatorIndex = -1;
 
     while (index < tokens.length) {
         const phraseStart = index;
@@ -135,7 +141,11 @@ function parseAddressListTokens(
              * angle-addr or a group's `:` is a name rather than a mailbox, however many words sit
              * in between, so it must never be reported as a recipient.
              */
-            const followedBy = tokens[findEntryTerminator(tokens, parsed.nextIndex)]?.raw;
+            if (knownTerminatorIndex < parsed.nextIndex) {
+                knownTerminatorIndex = findEntryTerminator(tokens, parsed.nextIndex);
+            }
+
+            const followedBy = tokens[knownTerminatorIndex]?.raw;
 
             if (parsed.address && followedBy !== '<' && followedBy !== ':') {
                 addresses.push(parsed.address);

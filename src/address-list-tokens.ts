@@ -97,6 +97,7 @@ type DelimitedScan = {
  */
 export function tokenizeAddressList(headerValue: string): AddressListToken[] {
     const tokens: AddressListToken[] = [];
+    let scanTables: DelimiterScanTables | undefined;
     let index = 0;
     let isSpaced = false;
 
@@ -104,13 +105,21 @@ export function tokenizeAddressList(headerValue: string): AddressListToken[] {
         const character = headerValue.charAt(index);
 
         if (character === '(') {
-            index = scanToCommentEnd(headerValue, index).end;
-            isSpaced = true;
-        } else if (character === doubleQuote) {
-            const scan = scanToClosingCharacter({
+            scanTables ??= buildDelimiterScanTables(headerValue);
+            index = scanDelimitedRun({
                 headerValue,
                 startIndex: index,
-                closingCharacter: doubleQuote,
+                endTable: scanTables.commentEnd,
+                recoveryTable: scanTables.recovery,
+            }).end;
+            isSpaced = true;
+        } else if (character === doubleQuote) {
+            scanTables ??= buildDelimiterScanTables(headerValue);
+            const scan = scanDelimitedRun({
+                headerValue,
+                startIndex: index,
+                endTable: scanTables.quotedStringEnd,
+                recoveryTable: scanTables.recovery,
             });
             const raw = headerValue.slice(index, scan.end);
 
@@ -126,10 +135,12 @@ export function tokenizeAddressList(headerValue: string): AddressListToken[] {
             index = scan.end;
             isSpaced = !scan.isTerminated;
         } else if (character === '[') {
-            const scan = scanToClosingCharacter({
+            scanTables ??= buildDelimiterScanTables(headerValue);
+            const scan = scanDelimitedRun({
                 headerValue,
                 startIndex: index,
-                closingCharacter: ']',
+                endTable: scanTables.domainLiteralEnd,
+                recoveryTable: scanTables.recovery,
             });
             const raw = headerValue.slice(index, scan.end);
 
@@ -177,78 +188,111 @@ export function tokenizeAddressList(headerValue: string): AddressListToken[] {
     return tokens;
 }
 
-/** Comments nest, so this tracks depth instead of stopping at the first `)`. */
-function scanToCommentEnd(headerValue: string, startIndex: number): DelimitedScan {
-    let index = startIndex + 1;
-    let depth = 1;
-    let recoveryIndex = -1;
+/**
+ * Per-header lookup tables for {@link scanDelimitedRun}. Each table answers "where does a run opened
+ * just before this index end" in constant time. Without them, every unterminated `(`, `"`, or `[`
+ * re-scans the whole remaining header before rewinding to its recovery point, so a header full of
+ * unbalanced openers costs quadratic time: a cheap CPU denial of service.
+ */
+type DelimiterScanTables = {
+    commentEnd: Int32Array;
+    quotedStringEnd: Int32Array;
+    domainLiteralEnd: Int32Array;
+    recovery: Int32Array;
+};
 
-    while (index < headerValue.length) {
-        const character = headerValue.charAt(index);
-
-        if (character === backslash) {
-            index += 2;
-            continue;
-        } else if (character === '(') {
-            depth++;
-        } else if (character === ')') {
-            depth--;
-
-            if (!depth) {
-                return {
-                    end: index + 1,
-                    isTerminated: true,
-                };
-            }
-        } else if (recoveryIndex < 0 && recoveryCharacters.includes(character)) {
-            recoveryIndex = index;
-        }
-
-        index++;
-    }
-
-    return unterminatedScan(headerValue, recoveryIndex);
-}
-
-function scanToClosingCharacter({
-    headerValue,
-    startIndex,
-    closingCharacter,
-}: Readonly<{
-    headerValue: string;
-    startIndex: number;
-    closingCharacter: string;
-}>): DelimitedScan {
-    let index = startIndex + 1;
-    let recoveryIndex = -1;
-
-    while (index < headerValue.length) {
-        const character = headerValue.charAt(index);
-
-        if (character === backslash) {
-            index += 2;
-            continue;
-        } else if (character === closingCharacter) {
-            return {
-                end: index + 1,
-                isTerminated: true,
-            };
-        } else if (recoveryIndex < 0 && recoveryCharacters.includes(character)) {
-            recoveryIndex = index;
-        }
-
-        index++;
-    }
-
-    return unterminatedScan(headerValue, recoveryIndex);
+/** Built once per header value, on its first `(`, `"`, or `[`. */
+function buildDelimiterScanTables(headerValue: string): DelimiterScanTables {
+    return {
+        commentEnd: buildCommentEndTable(headerValue),
+        quotedStringEnd: buildFirstMatchTable(
+            headerValue,
+            (character) => character === doubleQuote,
+        ),
+        domainLiteralEnd: buildFirstMatchTable(headerValue, (character) => character === ']'),
+        recovery: buildFirstMatchTable(headerValue, (character) =>
+            recoveryCharacters.includes(character),
+        ),
+    };
 }
 
 /**
- * An unterminated comment, quoted string, or domain literal resumes at its recovery point so that
- * one unbalanced delimiter in a display name cannot silently delete every address after it. The
- * recovery point was found during the same forward scan, so recovery stays linear.
+ * For each index, the first matching position at or after it along the scans' backslash-skipping
+ * walk, or `-1` if the walk reaches the end of the header without a match. The two extra trailing
+ * entries absorb the two-step jump of a backslash at the very end.
  */
-function unterminatedScan(headerValue: string, recoveryIndex: number): DelimitedScan {
+function buildFirstMatchTable(
+    headerValue: string,
+    isMatch: (character: string) => boolean,
+): Int32Array {
+    const table = new Int32Array(headerValue.length + 2).fill(-1);
+
+    for (let index = headerValue.length - 1; index >= 0; index--) {
+        const character = headerValue.charAt(index);
+        table[index] =
+            character === backslash
+                ? (table[index + 2] ?? -1)
+                : isMatch(character)
+                  ? index
+                  : (table[index + 1] ?? -1);
+    }
+
+    return table;
+}
+
+/**
+ * For each index, the `)` that ends a comment already one level deep at that index, or `-1` if that
+ * comment never closes. Comments nest, so a nested `(` jumps past its own comment's end and
+ * continues from there, which is what lets one right-to-left pass fill the whole table.
+ */
+function buildCommentEndTable(headerValue: string): Int32Array {
+    const table = new Int32Array(headerValue.length + 2).fill(-1);
+
+    for (let index = headerValue.length - 1; index >= 0; index--) {
+        const character = headerValue.charAt(index);
+
+        if (character === backslash) {
+            table[index] = table[index + 2] ?? -1;
+        } else if (character === ')') {
+            table[index] = index;
+        } else if (character === '(') {
+            const nestedEnd = table[index + 1] ?? -1;
+            table[index] = nestedEnd < 0 ? -1 : (table[nestedEnd + 1] ?? -1);
+        } else {
+            table[index] = table[index + 1] ?? -1;
+        }
+    }
+
+    return table;
+}
+
+/**
+ * Where the comment, quoted string, or domain literal opened at `startIndex` ends. An unterminated
+ * run resumes at its recovery point so that one unbalanced delimiter in a display name cannot
+ * silently delete every address after it.
+ */
+function scanDelimitedRun({
+    headerValue,
+    startIndex,
+    endTable,
+    recoveryTable,
+}: Readonly<{
+    headerValue: string;
+    startIndex: number;
+    endTable: Int32Array;
+    recoveryTable: Int32Array;
+}>): DelimitedScan {
+    const closingIndex = endTable[startIndex + 1] ?? -1;
+
+    if (closingIndex >= 0) {
+        return {
+            end: closingIndex + 1,
+            isTerminated: true,
+        };
+    }
+
+    const recoveryIndex = recoveryTable[startIndex + 1] ?? -1;
+
     return {
         end: recoveryIndex < 0 ? headerValue.length : recoveryIndex,
         isTerminated: false,
